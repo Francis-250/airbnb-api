@@ -2,8 +2,14 @@ import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 
 export const getAllListings = async (req: Request, res: Response) => {
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
   try {
-    const listings = await prisma.listing.findMany();
+    const listings = await prisma.listing.findMany({
+      where: { hostId: user },
+    });
     if (listings.length === 0) {
       return res.status(404).json({ message: "No listings found" });
     }
@@ -15,9 +21,13 @@ export const getAllListings = async (req: Request, res: Response) => {
 
 export const getListingById = async (req: Request, res: Response) => {
   const { id } = req.params;
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
   try {
     const listing = await prisma.listing.findUnique({
-      where: { id: id as string },
+      where: { id: id as string, hostId: user },
     });
     if (!listing) {
       return res.status(404).json({ message: "Listing not found" });
@@ -29,6 +39,10 @@ export const getListingById = async (req: Request, res: Response) => {
 };
 
 export const createListing = async (req: Request, res: Response) => {
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
   const {
     title,
     description,
@@ -77,6 +91,7 @@ export const createListing = async (req: Request, res: Response) => {
         type,
         amenities,
         rating,
+        hostId: user,
       },
     });
     res.status(201).json(listing);
@@ -88,6 +103,10 @@ export const createListing = async (req: Request, res: Response) => {
 
 export const updateListing = async (req: Request, res: Response) => {
   const { id } = req.params;
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
   const {
     title,
     description,
@@ -99,6 +118,14 @@ export const updateListing = async (req: Request, res: Response) => {
     rating,
   } = req.body;
   try {
+    const isOwned = await prisma.listing.findFirst({
+      where: { id: id as string, hostId: user },
+    });
+    if (!isOwned) {
+      return res
+        .status(403)
+        .json({ message: "This property is not owned by you" });
+    }
     const existingListing = await prisma.listing.findUnique({
       where: { id: id as string },
     });
@@ -127,7 +154,19 @@ export const updateListing = async (req: Request, res: Response) => {
 
 export const deleteListing = async (req: Request, res: Response) => {
   const { id } = req.params;
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
   try {
+    const isOwned = await prisma.listing.findFirst({
+      where: { id: id as string, hostId: user },
+    });
+    if (!isOwned) {
+      return res
+        .status(403)
+        .json({ message: "This property is not owned by you" });
+    }
     const existingListing = await prisma.listing.findUnique({
       where: { id: id as string },
     });

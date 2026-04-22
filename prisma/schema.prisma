@@ -16,6 +16,7 @@ model user {
   avatar   String?
   bio      String?
   password String
+  listings listing[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 }
@@ -30,6 +31,8 @@ model listing {
   type          ListingType
   amenities     String[]
   rating        Float?
+  hostId        String
+  host          user           @relation(fields: [hostId], references: [id])
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 }
