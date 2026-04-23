@@ -1,7 +1,45 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
-import { comparePassword } from "../lib/helpers";
+import { comparePassword, hashPassword } from "../lib/helpers";
+
+export const register = async (req: Request, res: Response) => {
+  const { name, email, username, phone, role, avatar, bio, password } =
+    req.body;
+  if (!name || !email || !username || !password) {
+    return res
+      .status(400)
+      .json({ message: "Name, email, username and password are required" });
+  }
+
+  try {
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { phone }, { username }],
+      },
+    });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+    const hashedpassword = await hashPassword(password);
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        username,
+        phone,
+        role,
+        avatar,
+        bio,
+        password: hashedpassword,
+      },
+    });
+    res.status(201).json(user);
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
