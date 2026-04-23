@@ -1,18 +1,14 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
-
 export const getAllListings = async (req: Request, res: Response) => {
   const user = req.user;
-  if (!user) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  const role = req.role;
+  if (!user) return res.status(401).json({ message: "Unauthorized" });
+
   try {
     const listings = await prisma.listing.findMany({
-      where: { hostId: user },
+      where: role === "host" ? { hostId: user } : {},
     });
-    if (listings.length === 0) {
-      return res.status(404).json({ message: "No listings found" });
-    }
     res.status(200).json(listings);
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
@@ -22,12 +18,15 @@ export const getAllListings = async (req: Request, res: Response) => {
 export const getListingById = async (req: Request, res: Response) => {
   const { id } = req.params;
   const user = req.user;
-  if (!user) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  const role = req.role;
+
+  if (!user) return res.status(401).json({ message: "Unauthorized" });
   try {
     const listing = await prisma.listing.findUnique({
-      where: { id: id as string, hostId: user },
+      where:
+        role === "host"
+          ? { id: id as string, hostId: user }
+          : { id: id as string },
     });
     if (!listing) {
       return res.status(404).json({ message: "Listing not found" });
