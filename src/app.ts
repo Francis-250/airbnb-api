@@ -5,6 +5,7 @@ import cors from "cors";
 import listingsRoutes from "./routes/listings.routes";
 import usersRoutes from "./routes/users.routes";
 import authRoutes from "./routes/auth.routes";
+import bookingRoutes from "./routes/booking.routes";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -16,6 +17,7 @@ app.use(cookieParser());
 app.use("/api/listings", listingsRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 app.get("/", (req: Request, res: Response) => {
   res.status(200).json({ message: "Api is running" });

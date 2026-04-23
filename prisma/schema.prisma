@@ -7,22 +7,23 @@ datasource db {
 }
 
 model user {
-  id       String         @id @default(cuid())
-  name     String
-  email    String
-  username String
-  phone    String
-  role     Role
-  avatar   String?
-  bio      String?
-  password String
-  listings listing[]
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id        String    @id @default(cuid())
+  name      String
+  email     String
+  username  String
+  phone     String
+  role      Role
+  avatar    String?
+  bio       String?
+  password  String
+  listings  listing[]
+  bookings  booking[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model listing {
-  id            String         @id @default(cuid())
+  id            String      @id @default(cuid())
   title         String
   description   String
   location      String
@@ -32,9 +33,23 @@ model listing {
   amenities     String[]
   rating        Float?
   hostId        String
-  host          user           @relation(fields: [hostId], references: [id])
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  host          user        @relation(fields: [hostId], references: [id])
+  bookings      booking[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model booking {
+  id         String        @id @default(cuid())
+  checkIn    DateTime
+  checkOut   DateTime
+  totalPrice Float
+  status     BookingStatus @default(pending)
+  createdAt  DateTime      @default(now())
+  guest      user          @relation(fields: [guestId], references: [id])
+  guestId    String
+  listing    listing       @relation(fields: [listingId], references: [id])
+  listingId  String
 }
 
 enum Role {
@@ -47,4 +62,10 @@ enum ListingType {
   house
   villa
   cabin
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  cancelled
 }
