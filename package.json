@@ -5,11 +5,13 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "tsx src/app.ts",
+    "start": "node dist/app.js",
+    "build": "tsc",
     "dev": "nodemon --exec tsx src/app.ts",
     "push": "pnpm dlx prisma db push",
     "generate": "pnpm dlx prisma generate",
-    "migrate": "pnpm dlx prisma migrate dev"
+    "migrate": "pnpm dlx prisma migrate dev",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
@@ -34,6 +36,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.6.0",
+    "@types/pg": "^8.20.0",
     "nodemon": "^3.1.14",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
