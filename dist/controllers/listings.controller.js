@@ -1,11 +1,17 @@
-import prisma from "../lib/prisma";
-export const getAllListings = async (req, res) => {
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.deleteListing = exports.updateListing = exports.createListing = exports.getListingById = exports.getAllListings = void 0;
+const prisma_1 = __importDefault(require("../lib/prisma"));
+const getAllListings = async (req, res) => {
     const user = req.user;
     const role = req.role;
     if (!user)
         return res.status(401).json({ message: "Unauthorized" });
     try {
-        const listings = await prisma.listing.findMany({
+        const listings = await prisma_1.default.listing.findMany({
             where: role === "host" ? { hostId: user } : {},
         });
         res.status(200).json(listings);
@@ -14,14 +20,15 @@ export const getAllListings = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
-export const getListingById = async (req, res) => {
+exports.getAllListings = getAllListings;
+const getListingById = async (req, res) => {
     const { id } = req.params;
     const user = req.user;
     const role = req.role;
     if (!user)
         return res.status(401).json({ message: "Unauthorized" });
     try {
-        const listing = await prisma.listing.findUnique({
+        const listing = await prisma_1.default.listing.findUnique({
             where: role === "host"
                 ? { id: id, hostId: user }
                 : { id: id },
@@ -35,7 +42,8 @@ export const getListingById = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
-export const createListing = async (req, res) => {
+exports.getListingById = getListingById;
+const createListing = async (req, res) => {
     const user = req.user;
     if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -57,7 +65,7 @@ export const createListing = async (req, res) => {
         });
     }
     try {
-        const existingListing = await prisma.listing.findFirst({
+        const existingListing = await prisma_1.default.listing.findFirst({
             where: { title },
         });
         if (existingListing) {
@@ -65,7 +73,7 @@ export const createListing = async (req, res) => {
                 .status(400)
                 .json({ message: "Listing with this title already exists" });
         }
-        const listing = await prisma.listing.create({
+        const listing = await prisma_1.default.listing.create({
             data: {
                 title,
                 description,
@@ -85,7 +93,8 @@ export const createListing = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
-export const updateListing = async (req, res) => {
+exports.createListing = createListing;
+const updateListing = async (req, res) => {
     const { id } = req.params;
     const user = req.user;
     if (!user) {
@@ -93,7 +102,7 @@ export const updateListing = async (req, res) => {
     }
     const { title, description, location, pricePerNight, guests, type, amenities, rating, } = req.body;
     try {
-        const isOwned = await prisma.listing.findFirst({
+        const isOwned = await prisma_1.default.listing.findFirst({
             where: { id: id, hostId: user },
         });
         if (!isOwned) {
@@ -101,13 +110,13 @@ export const updateListing = async (req, res) => {
                 .status(403)
                 .json({ message: "This property is not owned by you" });
         }
-        const existingListing = await prisma.listing.findUnique({
+        const existingListing = await prisma_1.default.listing.findUnique({
             where: { id: id },
         });
         if (!existingListing) {
             return res.status(404).json({ message: "Listing not found" });
         }
-        const listing = await prisma.listing.update({
+        const listing = await prisma_1.default.listing.update({
             where: { id: id },
             data: {
                 title,
@@ -127,14 +136,15 @@ export const updateListing = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
-export const deleteListing = async (req, res) => {
+exports.updateListing = updateListing;
+const deleteListing = async (req, res) => {
     const { id } = req.params;
     const user = req.user;
     if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
     }
     try {
-        const isOwned = await prisma.listing.findFirst({
+        const isOwned = await prisma_1.default.listing.findFirst({
             where: { id: id, hostId: user },
         });
         if (!isOwned) {
@@ -142,13 +152,13 @@ export const deleteListing = async (req, res) => {
                 .status(403)
                 .json({ message: "This property is not owned by you" });
         }
-        const existingListing = await prisma.listing.findUnique({
+        const existingListing = await prisma_1.default.listing.findUnique({
             where: { id: id },
         });
         if (!existingListing) {
             return res.status(404).json({ message: "Listing not found" });
         }
-        await prisma.listing.delete({
+        await prisma_1.default.listing.delete({
             where: { id: id },
         });
         res.status(200).json({ message: "Listing deleted successfully" });
@@ -157,3 +167,4 @@ export const deleteListing = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
+exports.deleteListing = deleteListing;

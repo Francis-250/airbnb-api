@@ -1,8 +1,10 @@
-import { Router } from "express";
-import { getCurrentUser, login, logout } from "../controllers/auth.controller";
-import { verifyToken } from "../middleware/auth.middleware";
-const router = Router();
-router.post("/login", login);
-router.get("/me", verifyToken, getCurrentUser);
-router.post("/logout", verifyToken, logout);
-export default router;
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_controller_1 = require("../controllers/auth.controller");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const router = (0, express_1.Router)();
+router.post("/login", auth_controller_1.login);
+router.get("/me", auth_middleware_1.verifyToken, auth_controller_1.getCurrentUser);
+router.post("/logout", auth_middleware_1.verifyToken, auth_controller_1.logout);
+exports.default = router;
