@@ -1,29 +1,23 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.logout = exports.getCurrentUser = exports.login = void 0;
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const prisma_1 = __importDefault(require("../lib/prisma"));
-const helpers_1 = require("../lib/helpers");
-const login = async (req, res) => {
+import jwt from "jsonwebtoken";
+import prisma from "../lib/prisma";
+import { comparePassword } from "../lib/helpers";
+export const login = async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
     }
     try {
-        const user = await prisma_1.default.user.findFirst({
+        const user = await prisma.user.findFirst({
             where: { email },
         });
         if (!user) {
             return res.status(404).json({ message: "Invalid credentials" });
         }
-        const isMatch = await (0, helpers_1.comparePassword)(password, user.password);
+        const isMatch = await comparePassword(password, user.password);
         if (!isMatch) {
             return res.status(401).json({ message: "Invalid credentials" });
         }
-        const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
+        const token = jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
         res.cookie("token", token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
@@ -37,14 +31,13 @@ const login = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
-exports.login = login;
-const getCurrentUser = async (req, res) => {
+export const getCurrentUser = async (req, res) => {
     const user = req.user;
     if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
     }
     try {
-        const currentUser = await prisma_1.default.user.findUnique({
+        const currentUser = await prisma.user.findUnique({
             where: { id: user },
             select: {
                 name: true,
@@ -66,8 +59,7 @@ const getCurrentUser = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
-exports.getCurrentUser = getCurrentUser;
-const logout = async (req, res) => {
+export const logout = async (req, res) => {
     res.clearCookie("token", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -75,4 +67,3 @@ const logout = async (req, res) => {
     });
     res.status(200).json({ message: "Logout successful" });
 };
-exports.logout = logout;
