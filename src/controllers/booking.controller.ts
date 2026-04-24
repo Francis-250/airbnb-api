@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
+import { sendEmail } from "../middleware/mailer";
 
 export const getAllBookings = async (req: Request, res: Response) => {
   const user = req.user;
@@ -80,6 +81,13 @@ export const createBooking = async (req: Request, res: Response) => {
         listingId,
       },
     });
+    const message = `Booking created successfully! Total price: $${totalPrice}`;
+    const guest = await prisma.user.findUnique({ where: { id: user } });
+    await sendEmail({
+      to: guest?.email as string,
+      subject: "Welcome to Airbnb!",
+      text: message,
+    });
     res.status(201).json(booking);
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
@@ -115,6 +123,16 @@ export const updateBooking = async (req: Request, res: Response) => {
     const updated = await prisma.booking.update({
       where: { id: id as string },
       data: { status },
+    });
+    const message =
+      status === "approved"
+        ? "Your booking has been approved!"
+        : "Your booking has been rejected.";
+    const guest = await prisma.user.findUnique({ where: { id: user } });
+    await sendEmail({
+      to: guest?.email as string,
+      subject: "Welcome to Airbnb!",
+      text: message,
     });
     res.status(200).json(updated);
   } catch (error) {

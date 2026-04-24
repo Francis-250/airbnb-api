@@ -33,6 +33,7 @@ model listing {
   guests        Int
   type          ListingType
   amenities     String[]
+  photos        String[]
   rating        Float?
   hostId        String
   host          user        @relation(fields: [hostId], references: [id])

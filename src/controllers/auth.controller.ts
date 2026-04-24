@@ -1,13 +1,17 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
-import { comparePassword, hashPassword } from "../lib/helpers";
+import {
+  comparePassword,
+  deleteAvatar,
+  hashPassword,
+  uploadAvatar,
+} from "../lib/helpers";
 import crypto from "crypto";
 import { sendEmail } from "../middleware/mailer";
 
 export const register = async (req: Request, res: Response) => {
-  const { name, email, username, phone, role, avatar, bio, password } =
-    req.body;
+  const { name, email, username, phone, role, bio, password } = req.body;
   if (!name || !email || !username || !password) {
     return res
       .status(400)
@@ -23,6 +27,8 @@ export const register = async (req: Request, res: Response) => {
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
+    const avatar = req.file ? await uploadAvatar(req.file.buffer) : undefined;
+
     const hashedpassword = await hashPassword(password);
 
     const user = await prisma.user.create({
@@ -36,6 +42,16 @@ export const register = async (req: Request, res: Response) => {
         bio,
         password: hashedpassword,
       },
+    });
+    const isHost = role === "host";
+    const message = isHost
+      ? "Registration successful! Your host account has been created."
+      : "Registration successful! You can now log in.";
+
+    await sendEmail({
+      to: email,
+      subject: "Welcome to Airbnb!",
+      text: message,
     });
     res.status(201).json(user);
   } catch (error) {
@@ -235,6 +251,90 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateAvatar = async (req: Request, res: Response) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user } });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!req.file) return res.status(400).json({ message: "No file provided" });
+
+    if (user.avatar) await deleteAvatar(user.avatar);
+
+    const avatar = await uploadAvatar(req.file.buffer);
+    const updated = await prisma.user.update({
+      where: { id: req.user },
+      data: { avatar },
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const deleteUserAvatar = async (req: Request, res: Response) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user } });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.avatar)
+      return res.status(400).json({ message: "No avatar to delete" });
+
+    await deleteAvatar(user.avatar);
+    const updated = await prisma.user.update({
+      where: { id: req.user },
+      data: { avatar: null },
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateProfile = async (req: Request, res: Response) => {
+  const userId = req.user;
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const { name, username, phone, bio } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    let newAvatarUrl = user.avatar;
+    if (req.file) {
+      if (user.avatar) {
+        try {
+          await deleteAvatar(user.avatar);
+        } catch (error) {
+          console.error(
+            "Failed to delete old avatar, continuing with upload...",
+            error,
+          );
+        }
+      }
+      newAvatarUrl = await uploadAvatar(req.file.buffer);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        name,
+        username,
+        phone,
+        bio,
+        avatar: newAvatarUrl,
+      },
+    });
+
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    console.error("Error updating profile:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

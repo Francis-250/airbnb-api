@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
+import { uploadListingPhotos as uploadListingPhotosHelper } from "../lib/helpers";
 
 export const getAllListings = async (req: Request, res: Response) => {
   try {
@@ -52,6 +53,13 @@ export const createListing = async (req: Request, res: Response) => {
         .status(400)
         .json({ message: "Price per night must be greater than 0" });
     }
+
+    let photoUrls: string[] = [];
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      const results = await uploadListingPhotosHelper(req.files);
+      photoUrls = results.map((result: any) => result.secure_url);
+    }
+
     const listing = await prisma.listing.create({
       data: {
         title,
@@ -62,6 +70,7 @@ export const createListing = async (req: Request, res: Response) => {
         type,
         amenities,
         rating,
+        photos: photoUrls,
         hostId: user,
       },
     });
