@@ -4,7 +4,6 @@ import prisma from "../lib/prisma";
 export const getAllBookings = async (req: Request, res: Response) => {
   const user = req.user;
   const role = req.role;
-  if (!user) return res.status(401).json({ message: "Unauthorized" });
 
   try {
     const bookings = await prisma.booking.findMany({
@@ -25,7 +24,6 @@ export const getBookingById = async (req: Request, res: Response) => {
   const { id } = req.params;
   const user = req.user;
   const role = req.role;
-  if (!user) return res.status(401).json({ message: "Unauthorized" });
 
   try {
     const booking = await prisma.booking.findUnique({
@@ -53,27 +51,14 @@ export const getBookingById = async (req: Request, res: Response) => {
 
 export const createBooking = async (req: Request, res: Response) => {
   const user = req.user;
-  const role = req.role;
-  if (!user) return res.status(401).json({ message: "Unauthorized" });
-
-  if (role !== "guest") {
-    return res.status(403).json({ message: "Only guests can create bookings" });
-  }
-
   const { listingId, checkIn, checkOut } = req.body;
 
-  if (!listingId || !checkIn || !checkOut) {
-    return res
-      .status(400)
-      .json({ message: "listingId, checkIn and checkOut are required" });
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
   }
 
   const checkInDate = new Date(checkIn);
   const checkOutDate = new Date(checkOut);
-
-  if (checkInDate >= checkOutDate) {
-    return res.status(400).json({ message: "checkOut must be after checkIn" });
-  }
 
   try {
     const listing = await prisma.listing.findUnique({
@@ -105,16 +90,7 @@ export const updateBooking = async (req: Request, res: Response) => {
   const { id } = req.params;
   const user = req.user;
   const role = req.role;
-  if (!user) return res.status(401).json({ message: "Unauthorized" });
-
   const { status } = req.body;
-
-  if (!status) return res.status(400).json({ message: "Status is required" });
-
-  const validStatuses = ["pending", "confirmed", "cancelled"];
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({ message: "Invalid status" });
-  }
 
   try {
     const booking = await prisma.booking.findUnique({
@@ -124,10 +100,16 @@ export const updateBooking = async (req: Request, res: Response) => {
 
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    if (role !== "host" || booking.listing.hostId !== user) {
+    if (role === "host" && booking.listing.hostId !== user) {
       return res
         .status(403)
         .json({ message: "Only the host can update booking status" });
+    }
+
+    if (role === "guest") {
+      return res
+        .status(403)
+        .json({ message: "Guests are not allowed to update booking status" });
     }
 
     const updated = await prisma.booking.update({
@@ -143,7 +125,6 @@ export const updateBooking = async (req: Request, res: Response) => {
 export const deleteBooking = async (req: Request, res: Response) => {
   const { id } = req.params;
   const user = req.user;
-  if (!user) return res.status(401).json({ message: "Unauthorized" });
 
   try {
     const booking = await prisma.booking.findUnique({

@@ -1,14 +1,9 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
-export const getAllListings = async (req: Request, res: Response) => {
-  const user = req.user;
-  const role = req.role;
-  if (!user) return res.status(401).json({ message: "Unauthorized" });
 
+export const getAllListings = async (req: Request, res: Response) => {
   try {
-    const listings = await prisma.listing.findMany({
-      where: role === "host" ? { hostId: user } : {},
-    });
+    const listings = await prisma.listing.findMany();
     res.status(200).json(listings);
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
@@ -17,16 +12,10 @@ export const getAllListings = async (req: Request, res: Response) => {
 
 export const getListingById = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const user = req.user;
-  const role = req.role;
 
-  if (!user) return res.status(401).json({ message: "Unauthorized" });
   try {
     const listing = await prisma.listing.findUnique({
-      where:
-        role === "host"
-          ? { id: id as string, hostId: user }
-          : { id: id as string },
+      where: { id: id as string },
     });
     if (!listing) {
       return res.status(404).json({ message: "Listing not found" });
@@ -39,9 +28,6 @@ export const getListingById = async (req: Request, res: Response) => {
 
 export const createListing = async (req: Request, res: Response) => {
   const user = req.user;
-  if (!user) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
   const {
     title,
     description,
@@ -52,33 +38,19 @@ export const createListing = async (req: Request, res: Response) => {
     amenities,
     rating,
   } = req.body;
-  if (
-    !title ||
-    !description ||
-    !location ||
-    !pricePerNight ||
-    !guests ||
-    !type
-  ) {
-    return res.status(400).json({
-      message:
-        "Title, description, location, price per night, guests and type are required",
-    });
+
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
   }
-  if (pricePerNight <= 0 || guests <= 0) {
-    return res.status(400).json({
-      message:
-        "Price per night and guests must be not be less than or equal to zero ",
-    });
-  }
+
   try {
-    const existingListing = await prisma.listing.findFirst({
-      where: { title },
-    });
-    if (existingListing) {
+    if (guests <= 0) {
+      return res.status(400).json({ message: "Guests must be greater than 0" });
+    }
+    if (pricePerNight <= 0) {
       return res
         .status(400)
-        .json({ message: "Listing with this title already exists" });
+        .json({ message: "Price per night must be greater than 0" });
     }
     const listing = await prisma.listing.create({
       data: {
@@ -103,9 +75,6 @@ export const createListing = async (req: Request, res: Response) => {
 export const updateListing = async (req: Request, res: Response) => {
   const { id } = req.params;
   const user = req.user;
-  if (!user) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
   const {
     title,
     description,
@@ -116,7 +85,16 @@ export const updateListing = async (req: Request, res: Response) => {
     amenities,
     rating,
   } = req.body;
+
   try {
+    if (guests <= 0) {
+      return res.status(400).json({ message: "Guests must be greater than 0" });
+    }
+    if (pricePerNight <= 0) {
+      return res
+        .status(400)
+        .json({ message: "Price per night must be greater than 0" });
+    }
     const isOwned = await prisma.listing.findFirst({
       where: { id: id as string, hostId: user },
     });
@@ -125,12 +103,7 @@ export const updateListing = async (req: Request, res: Response) => {
         .status(403)
         .json({ message: "This property is not owned by you" });
     }
-    const existingListing = await prisma.listing.findUnique({
-      where: { id: id as string },
-    });
-    if (!existingListing) {
-      return res.status(404).json({ message: "Listing not found" });
-    }
+
     const listing = await prisma.listing.update({
       where: { id: id as string },
       data: {
@@ -154,9 +127,7 @@ export const updateListing = async (req: Request, res: Response) => {
 export const deleteListing = async (req: Request, res: Response) => {
   const { id } = req.params;
   const user = req.user;
-  if (!user) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+
   try {
     const isOwned = await prisma.listing.findFirst({
       where: { id: id as string, hostId: user },
@@ -166,12 +137,7 @@ export const deleteListing = async (req: Request, res: Response) => {
         .status(403)
         .json({ message: "This property is not owned by you" });
     }
-    const existingListing = await prisma.listing.findUnique({
-      where: { id: id as string },
-    });
-    if (!existingListing) {
-      return res.status(404).json({ message: "Listing not found" });
-    }
+
     await prisma.listing.delete({
       where: { id: id as string },
     });

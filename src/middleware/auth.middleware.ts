@@ -35,3 +35,27 @@ export const verifyToken = (
     return res.status(401).json({ message: "Unauthorized" });
   }
 };
+
+export const isHost = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  if (req.role !== "host") {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  next();
+};
+
+export const isGuest = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  if (req.role !== "guest") {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  next();
+};

@@ -6,14 +6,14 @@ import {
   updateListing,
   deleteListing,
 } from "../controllers/listings.controller";
-import { verifyToken } from "../middleware/auth.middleware";
+import { isHost, verifyToken } from "../middleware/auth.middleware";
 
 const router = Router();
 
 router.get("/", verifyToken, getAllListings);
 router.get("/:id", verifyToken, getListingById);
-router.post("/", verifyToken, createListing);
-router.put("/:id", verifyToken, updateListing);
-router.delete("/:id", verifyToken, deleteListing);
+router.post("/", verifyToken, isHost, createListing);
+router.put("/:id", verifyToken, isHost, updateListing);
+router.delete("/:id", verifyToken, isHost, deleteListing);
 
 export default router;

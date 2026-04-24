@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
 import { comparePassword, hashPassword } from "../lib/helpers";
+import crypto from "crypto";
+import { sendEmail } from "../middleware/mailer";
 
 export const register = async (req: Request, res: Response) => {
   const { name, email, username, phone, role, avatar, bio, password } =
@@ -113,4 +115,126 @@ export const logout = async (req: Request, res: Response) => {
     sameSite: "strict",
   });
   res.status(200).json({ message: "Logout successful" });
+};
+
+export const changePassword = async (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body;
+  const userId = req.user;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isMatch = await comparePassword(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid current password" });
+    }
+
+    const hashedpassword = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedpassword },
+    });
+
+    res.status(200).json({ message: "Password changed successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (user) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const resetTokenExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+      await prisma.user.update({
+        where: { email },
+        data: { resetToken: otp, resetTokenExpiry },
+      });
+
+      await sendEmail({
+        to: email,
+        subject: "Your Password Reset OTP",
+        text: `Your OTP for password reset is: ${otp}\n\nThis OTP expires in 10 minutes. Do not share it with anyone.`,
+      });
+    }
+
+    res.status(200).json({
+      message: "If a user with that email exists, an OTP has been sent",
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const verifyOtp = async (req: Request, res: Response) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return res.status(400).json({ message: "Email and OTP are required" });
+  }
+
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        email,
+        resetToken: otp,
+        resetTokenExpiry: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetToken, resetTokenExpiry },
+    });
+
+    res.status(200).json({ message: "OTP verified", resetToken });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  const { token, newPassword } = req.body;
+
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
+    const hashedpassword = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedpassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
+    });
+
+    res.status(200).json({ message: "Password reset successful" });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
