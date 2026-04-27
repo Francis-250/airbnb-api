@@ -29,30 +29,37 @@ export const getListingById = async (req: Request, res: Response) => {
 
 export const createListing = async (req: Request, res: Response) => {
   const user = req.user;
-  const {
-    title,
-    description,
-    location,
-    pricePerNight,
-    guests,
-    type,
-    amenities,
-    rating,
-  } = req.body;
 
   if (!user) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
   try {
-    if (guests <= 0) {
+    const {
+      title,
+      description,
+      location,
+      pricePerNight,
+      guests,
+      type,
+      amenities,
+      rating,
+    } = req.body;
+
+    const parsedPrice = parseFloat(pricePerNight);
+    const parsedGuests = parseInt(guests);
+    const parsedRating = parseFloat(rating);
+    const parsedAmenities =
+      typeof amenities === "string"
+        ? amenities.split(",").map((a: string) => a.trim())
+        : amenities;
+
+    if (parsedGuests <= 0)
       return res.status(400).json({ message: "Guests must be greater than 0" });
-    }
-    if (pricePerNight <= 0) {
+    if (parsedPrice <= 0)
       return res
         .status(400)
         .json({ message: "Price per night must be greater than 0" });
-    }
 
     let photoUrls: string[] = [];
     if (req.files && Array.isArray(req.files) && req.files.length > 0) {
@@ -65,15 +72,16 @@ export const createListing = async (req: Request, res: Response) => {
         title,
         description,
         location,
-        pricePerNight,
-        guests,
+        pricePerNight: parsedPrice,
+        guests: parsedGuests,
         type,
-        amenities,
-        rating,
+        amenities: parsedAmenities,
+        rating: parsedRating,
         photos: photoUrls,
         hostId: user,
       },
     });
+
     res.status(201).json(listing);
   } catch (error) {
     console.log(error);
