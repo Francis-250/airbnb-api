@@ -6,13 +6,22 @@ import listingsRoutes from "./routes/listings.routes";
 import usersRoutes from "./routes/users.routes";
 import authRoutes from "./routes/auth.routes";
 import bookingRoutes from "./routes/booking.routes";
+import { setupSwagger } from "./lib/swagger";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:4000",
+    credentials: true,
+  }),
+);
+
 app.use(express.json());
 app.use(cookieParser());
+
+setupSwagger(app);
 
 app.use("/api/listings", listingsRoutes);
 app.use("/api/users", usersRoutes);
