@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { sendEmail } from "../middleware/mailer";
+import {
+  bookingConfirmationEmail,
+  bookingStatusEmail,
+} from "../templates/mail.temp";
 
 export const getAllBookings = async (req: Request, res: Response) => {
   const user = req.user;
@@ -81,12 +85,11 @@ export const createBooking = async (req: Request, res: Response) => {
         listingId,
       },
     });
-    const message = `Booking created successfully! Total price: $${totalPrice}`;
     const guest = await prisma.user.findUnique({ where: { id: user } });
     await sendEmail({
       to: guest?.email as string,
       subject: "Welcome to Airbnb!",
-      text: message,
+      html: bookingConfirmationEmail(listing.title, checkIn, checkOut),
     });
     res.status(201).json(booking);
   } catch (error) {
@@ -132,7 +135,7 @@ export const updateBooking = async (req: Request, res: Response) => {
     await sendEmail({
       to: guest?.email as string,
       subject: "Welcome to Airbnb!",
-      text: message,
+      html: bookingStatusEmail(status),
     });
     res.status(200).json(updated);
   } catch (error) {

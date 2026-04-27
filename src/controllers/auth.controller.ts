@@ -9,6 +9,7 @@ import {
 } from "../lib/helpers";
 import crypto from "crypto";
 import { sendEmail } from "../middleware/mailer";
+import { passwordResetEmail, welcomeEmail } from "../templates/mail.temp";
 
 export const register = async (req: Request, res: Response) => {
   const { name, email, username, phone, role, bio, password } = req.body;
@@ -51,7 +52,7 @@ export const register = async (req: Request, res: Response) => {
     await sendEmail({
       to: email,
       subject: "Welcome to Airbnb!",
-      text: message,
+      html: welcomeEmail(user.name),
     });
     res.status(201).json(user);
   } catch (error) {
@@ -178,7 +179,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
       await sendEmail({
         to: email,
         subject: "Your Password Reset OTP",
-        text: `Your OTP for password reset is: ${otp}\n\nThis OTP expires in 10 minutes. Do not share it with anyone.`,
+        html: passwordResetEmail(otp),
       });
     }
 

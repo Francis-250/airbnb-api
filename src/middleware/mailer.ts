@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 interface EmailOptions {
   to: string;
   subject: string;
-  text: string;
+  html: string;
 }
 
 const transporter = nodemailer.createTransport({
@@ -14,13 +14,13 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export const sendEmail = async ({ to, subject, text }: EmailOptions) => {
+export const sendEmail = async ({ to, subject, html }: EmailOptions) => {
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to,
       subject,
-      text,
+      html,
     });
   } catch (error) {
     console.log(error);
