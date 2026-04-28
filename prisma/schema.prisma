@@ -6,7 +6,7 @@ datasource db {
   provider = "postgresql"
 }
 
-model user {
+model User {
   id               String    @id @default(cuid())
   name             String
   email            String    @unique
@@ -18,13 +18,13 @@ model user {
   password         String
   resetToken       String?
   resetTokenExpiry DateTime?
-  listings         listing[]
-  bookings         booking[]
+  listings         Listing[]
+  bookings         Booking[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }
 
-model listing {
+model Listing {
   id            String      @id @default(cuid())
   title         String
   description   String
@@ -36,22 +36,22 @@ model listing {
   photos        String[]
   rating        Float?
   hostId        String
-  host          user        @relation(fields: [hostId], references: [id])
-  bookings      booking[]
+  host          User        @relation(fields: [hostId], references: [id])
+  bookings      Booking[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }
 
-model booking {
+model Booking {
   id         String        @id @default(cuid())
   checkIn    DateTime
   checkOut   DateTime
   totalPrice Float
   status     BookingStatus @default(pending)
   createdAt  DateTime      @default(now())
-  guest      user          @relation(fields: [guestId], references: [id])
+  guest      User          @relation(fields: [guestId], references: [id])
   guestId    String
-  listing    listing       @relation(fields: [listingId], references: [id])
+  listing    Listing       @relation(fields: [listingId], references: [id])
   listingId  String
 }
 

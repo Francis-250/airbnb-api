@@ -14,6 +14,12 @@ import {
 } from "../controllers/auth.controller";
 import { verifyToken } from "../middleware/auth.middleware";
 import { upload } from "../middleware/upload.middleware";
+import {
+  forgotPasswordLimiter,
+  loginLimiter,
+  otpLimiter,
+  registerLimiter,
+} from "../middleware/ratelimiter";
 
 const router = Router();
 
@@ -48,7 +54,7 @@ const router = Router();
  *       400: { description: Bad request }
  *       409: { description: Email already exists }
  */
-router.post("/register", upload.single("avatar"), register);
+router.post("/register", registerLimiter, upload.single("avatar"), register);
 
 /**
  * @swagger
@@ -72,7 +78,7 @@ router.post("/register", upload.single("avatar"), register);
  *       200: { description: Login successful }
  *       401: { description: Invalid credentials }
  */
-router.post("/login", login);
+router.post("/login", loginLimiter, login);
 
 /**
  * @swagger
@@ -142,7 +148,7 @@ router.post("/change-password", verifyToken, changePassword);
  *     responses:
  *       200: { description: Reset email sent if email exists }
  */
-router.post("/forgot-password", forgotPassword);
+router.post("/forgot-password", forgotPasswordLimiter, forgotPassword);
 
 /**
  * @swagger
@@ -190,7 +196,7 @@ router.post("/reset-password", resetPassword);
  *       200: { description: OTP verified successfully }
  *       400: { description: Invalid OTP }
  */
-router.post("/verify-otp", verifyOtp);
+router.post("/verify-otp", otpLimiter, verifyOtp);
 
 /**
  * @swagger

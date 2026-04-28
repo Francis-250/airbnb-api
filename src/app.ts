@@ -7,6 +7,7 @@ import usersRoutes from "./routes/users.routes";
 import authRoutes from "./routes/auth.routes";
 import bookingRoutes from "./routes/booking.routes";
 import { setupSwagger } from "./lib/swagger";
+import { generalLimiter } from "./middleware/ratelimiter";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -20,6 +21,7 @@ app.use(
 
 app.use(express.json());
 app.use(cookieParser());
+app.use(generalLimiter);
 
 setupSwagger(app);
 

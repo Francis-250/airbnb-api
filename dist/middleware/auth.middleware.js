@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyToken = void 0;
+exports.isGuest = exports.isHost = exports.verifyToken = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const verifyToken = (req, res, next) => {
     if (!process.env.JWT_SECRET) {
@@ -24,3 +24,23 @@ const verifyToken = (req, res, next) => {
     }
 };
 exports.verifyToken = verifyToken;
+const isHost = (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (req.role !== "host") {
+        return res.status(403).json({ message: "Forbidden" });
+    }
+    next();
+};
+exports.isHost = isHost;
+const isGuest = (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (req.role !== "guest") {
+        return res.status(403).json({ message: "Forbidden" });
+    }
+    next();
+};
+exports.isGuest = isGuest;
