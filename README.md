@@ -28,6 +28,7 @@ A RESTful API built with Express, TypeScript, and Prisma — modeled after Airbn
 
 ## Project Structure
 
+```
 airbnb-api/
 ├── src/
 │   ├── controllers/
@@ -61,6 +62,7 @@ airbnb-api/
 ├── .env
 ├── package.json
 └── tsconfig.json
+```
 ## Getting Started
 
 ### Prerequisites
@@ -72,13 +74,14 @@ airbnb-api/
 
 ### Installation
 
-git clone https://github.com/your-username/airbnb-api.git
+git clone https://github.com/francis-250/airbnb-api.git
 cd airbnb-api
 pnpm install
 ### Environment Variables
 
 Create a `.env` file in the root:
 
+```
 DATABASE_URL=postgresql://user:password@localhost:5432/airbnb
 JWT_SECRET=your_jwt_secret
 NODE_ENV=development
@@ -89,6 +92,7 @@ CLOUDINARY_API_SECRET=your_api_secret
 
 EMAIL_USER=your@gmail.com
 EMAIL_PASS=your_app_password
+```
 ### Database Setup
 
 pnpm migrate        # run migrations
