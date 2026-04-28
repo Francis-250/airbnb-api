@@ -1,11 +1,30 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { uploadListingPhotos as uploadListingPhotosHelper } from "../lib/helpers";
+import { deleteCacheByPrefix, getCache, setCache } from "../lib/cache";
 
 export const getAllListings = async (req: Request, res: Response) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 10;
+  const skip = (page - 1) * limit;
+
+  const cacheKey = `listings:all:page:${page}:limit:${limit}`;
+  const cached = getCache(cacheKey);
+  if (cached) return res.status(200).json(cached);
+
   try {
-    const listings = await prisma.listing.findMany();
-    res.status(200).json(listings);
+    const [listings, total] = await Promise.all([
+      prisma.listing.findMany({ skip, take: limit }),
+      prisma.listing.count(),
+    ]);
+
+    const response = {
+      data: listings,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+
+    setCache(cacheKey, response, 60);
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
   }
@@ -82,6 +101,7 @@ export const createListing = async (req: Request, res: Response) => {
       },
     });
 
+    deleteCacheByPrefix("listings:");
     res.status(201).json(listing);
   } catch (error) {
     console.log(error);
@@ -112,6 +132,7 @@ export const updateListing = async (req: Request, res: Response) => {
         .status(400)
         .json({ message: "Price per night must be greater than 0" });
     }
+
     const isOwned = await prisma.listing.findFirst({
       where: { id: id as string, hostId: user },
     });
@@ -134,6 +155,8 @@ export const updateListing = async (req: Request, res: Response) => {
         rating,
       },
     });
+
+    deleteCacheByPrefix("listings:");
     res.status(200).json(listing);
   } catch (error) {
     console.log(error);
@@ -155,10 +178,78 @@ export const deleteListing = async (req: Request, res: Response) => {
         .json({ message: "This property is not owned by you" });
     }
 
-    await prisma.listing.delete({
-      where: { id: id as string },
-    });
+    await prisma.listing.delete({ where: { id: id as string } });
+
+    deleteCacheByPrefix("listings:");
     res.status(200).json({ message: "Listing deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const searchListings = async (req: Request, res: Response) => {
+  const { location, type, minPrice, maxPrice, guests } = req.query;
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 10;
+  const skip = (page - 1) * limit;
+
+  const where: any = {};
+  if (location)
+    where.location = { contains: location as string, mode: "insensitive" };
+  if (type) where.type = type as string;
+  if (minPrice || maxPrice) {
+    where.pricePerNight = {};
+    if (minPrice) where.pricePerNight.gte = parseFloat(minPrice as string);
+    if (maxPrice) where.pricePerNight.lte = parseFloat(maxPrice as string);
+  }
+  if (guests) where.guests = { gte: parseInt(guests as string) };
+
+  try {
+    const [listings, total] = await Promise.all([
+      prisma.listing.findMany({
+        where,
+        skip,
+        take: limit,
+        include: { host: { select: { name: true, email: true } } },
+      }),
+      prisma.listing.count({ where }),
+    ]);
+
+    res.status(200).json({
+      data: listings,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getListingStats = async (req: Request, res: Response) => {
+  const cacheKey = "listings:stats";
+  const cached = getCache(cacheKey);
+  if (cached) return res.status(200).json(cached);
+
+  try {
+    const [totalListings, priceAggregate, byLocation, byType] =
+      await Promise.all([
+        prisma.listing.count(),
+        prisma.listing.aggregate({ _avg: { pricePerNight: true } }),
+        prisma.listing.groupBy({
+          by: ["location"],
+          _count: { location: true },
+        }),
+        prisma.listing.groupBy({ by: ["type"], _count: { type: true } }),
+      ]);
+
+    const response = {
+      totalListings,
+      averagePrice: priceAggregate._avg.pricePerNight,
+      byLocation,
+      byType,
+    };
+
+    setCache(cacheKey, response, 300);
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
   }

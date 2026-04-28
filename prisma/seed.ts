@@ -3,13 +3,13 @@ import bcrypt from "bcryptjs";
 import prisma from "../src/lib/prisma";
 
 async function main() {
-  console.log("🌱 Seeding database...");
+  console.log("Seeding database...");
 
   await prisma.booking.deleteMany();
   await prisma.listing.deleteMany();
   await prisma.user.deleteMany();
 
-  console.log("🗑️  Cleared existing data");
+  console.log("Cleared existing data");
 
   const hashedPassword = await bcrypt.hash("password123", 10);
 
