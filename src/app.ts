@@ -34,7 +34,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/stats", statsRoutes);
 
-app.get("/", (req: Request, res: Response) => {
+app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ message: "Api is running" });
 });
 
