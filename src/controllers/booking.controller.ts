@@ -9,17 +9,30 @@ import {
 export const getAllBookings = async (req: Request, res: Response) => {
   const user = req.user;
   const role = req.role;
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 10;
+  const skip = (page - 1) * limit;
 
   try {
-    const bookings = await prisma.booking.findMany({
-      where:
-        role === "guest" ? { guestId: user } : { listing: { hostId: user } },
-      include: {
-        guest: { select: { name: true, avatar: true } },
-        listing: { select: { title: true, location: true } },
-      },
+    const where =
+      role === "guest" ? { guestId: user } : { listing: { hostId: user } };
+    const [bookings, total] = await Promise.all([
+      prisma.booking.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          guest: { select: { name: true, avatar: true } },
+          listing: { select: { title: true, location: true } },
+        },
+      }),
+      prisma.booking.count({ where }),
+    ]);
+
+    res.status(200).json({
+      data: bookings,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
-    res.status(200).json(bookings);
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
   }

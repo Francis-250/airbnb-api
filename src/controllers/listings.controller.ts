@@ -7,15 +7,23 @@ export const getAllListings = async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
   const skip = (page - 1) * limit;
+  const user = req.user;
+  const role = req.role;
 
-  const cacheKey = `listings:all:page:${page}:limit:${limit}`;
+  const cacheKey = `listings:all:page:${page}:limit:${limit}:user:${user}:role:${role}`;
   const cached = getCache(cacheKey);
   if (cached) return res.status(200).json(cached);
 
   try {
+    const where = role === "host" ? { hostId: user } : {};
     const [listings, total] = await Promise.all([
-      prisma.listing.findMany({ skip, take: limit }),
-      prisma.listing.count(),
+      prisma.listing.findMany({
+        where,
+        skip,
+        take: limit,
+        include: { host: { select: { name: true, email: true } } },
+      }),
+      prisma.listing.count({ where }),
     ]);
 
     const response = {
@@ -36,6 +44,7 @@ export const getListingById = async (req: Request, res: Response) => {
   try {
     const listing = await prisma.listing.findUnique({
       where: { id: id as string },
+      include: { host: { select: { name: true, email: true } } },
     });
     if (!listing) {
       return res.status(404).json({ message: "Listing not found" });

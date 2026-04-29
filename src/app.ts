@@ -13,10 +13,14 @@ import { generalLimiter } from "./middleware/ratelimiter";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const allowedOrigins = [
+  "http://localhost:4000",
+  "https://airbnb-api-oi1o.onrender.com",
+];
 
 app.use(
   cors({
-    origin: "http://localhost:4000",
+    origin: allowedOrigins,
     credentials: true,
   }),
 );
