@@ -8,7 +8,7 @@ import {
   uploadAvatar,
 } from "../lib/helpers";
 import crypto from "crypto";
-import { sendEmail } from "../middleware/mailer";
+import { sendEmail } from "../middleware/resend";
 import { passwordResetEmail, welcomeEmail } from "../templates/mail.temp";
 
 export const register = async (req: Request, res: Response) => {
