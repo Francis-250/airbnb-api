@@ -2,25 +2,37 @@ import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 
 export const getAllUsers = async (req: Request, res: Response) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 10;
+  const skip = (page - 1) * limit;
   try {
-    const users = await prisma.user.findMany({
-      orderBy: {
-        createdAt: "desc",
-      },
-      select: {
-        name: true,
-        email: true,
-        username: true,
-        phone: true,
-        role: true,
-        avatar: true,
-        bio: true,
-      },
-    });
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          name: true,
+          email: true,
+          username: true,
+          phone: true,
+          role: true,
+          avatar: true,
+          bio: true,
+        },
+      }),
+      prisma.user.count(),
+    ]);
+
     if (users.length === 0) {
       return res.status(404).json({ message: "No users found" });
     }
-    res.status(200).json(users);
+    res.status(200).json({
+      data: users,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
   }
