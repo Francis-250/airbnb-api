@@ -54,7 +54,9 @@ export const register = async (req: Request, res: Response) => {
       subject: "Welcome to Airbnb!",
       html: welcomeEmail(user.name),
     });
-    res.status(201).json(user);
+    // return user without password
+    const { password: _, ...userWithoutPassword } = user;
+    res.status(201).json({ message, user: userWithoutPassword });
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
   }
