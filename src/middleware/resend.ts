@@ -11,7 +11,7 @@ interface EmailOptions {
 export const sendEmail = async ({ to, subject, html }: EmailOptions) => {
   try {
     await resend.emails.send({
-      from: "onboarding@resend.dev",
+      from: "Airbnb <onboarding@resend.dev>",
       to,
       subject,
       html,

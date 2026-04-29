@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
-import { sendEmail } from "../middleware/mailer";
+import { sendEmail } from "../middleware/resend";
 import {
   bookingConfirmationEmail,
   bookingStatusEmail,
