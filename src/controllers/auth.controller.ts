@@ -270,6 +270,11 @@ export const updateAvatar = async (req: Request, res: Response) => {
       where: { id: req.user },
       data: { avatar },
     });
+    const { password: _, ...userWithoutPassword } = updated;
+    res.status(201).json({
+      message: "Avatar updated successfully",
+      updated: userWithoutPassword,
+    });
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
@@ -287,6 +292,11 @@ export const deleteUserAvatar = async (req: Request, res: Response) => {
     const updated = await prisma.user.update({
       where: { id: req.user },
       data: { avatar: null },
+    });
+    const { password: _, ...userWithoutPassword } = updated;
+    res.status(201).json({
+      message: "Avatar updated successfully",
+      updated: userWithoutPassword,
     });
     res.json(updated);
   } catch (error) {
