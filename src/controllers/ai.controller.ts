@@ -102,7 +102,21 @@ Rules:
       prisma.listing.count({ where }),
     ]);
 
-    res.status(200).json({
+    if (total === 0) {
+      return res.json({
+        message: "No properties found matching your search criteria.",
+        filters,
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        },
+      });
+    }
+
+    return res.json({
       filters,
       data: listings,
       meta: {
