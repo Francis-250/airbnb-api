@@ -104,7 +104,7 @@ Rules:
 
     if (total === 0) {
       return res.json({
-        message: "No properties found matching your search criteria.",
+        message: "No properties found matching yo qur search criteria.",
         filters,
         data: [],
         meta: {
