@@ -20,6 +20,7 @@ const allowedOrigins = [
   "http://localhost:4000",
   "https://airbnb-api-oi1o.onrender.com",
   "http://localhost:5173",
+  "https://airbnb-914d.onrender.com",
 ];
 
 app.use(
