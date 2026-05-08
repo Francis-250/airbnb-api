@@ -7,6 +7,7 @@ import {
   deleteListing,
   searchListings,
   getListingStats,
+  getMyListings,
 } from "../controllers/listings.controller";
 import { isHost, verifyToken } from "../middleware/auth.middleware";
 import { upload } from "../middleware/upload.middleware";
@@ -44,6 +45,8 @@ const router = Router();
  *     responses:
  *       200: { description: Success }
  */
+router.get("/me", getMyListings);
+
 router.get("/", getAllListings);
 
 /**
@@ -215,7 +218,13 @@ router.post("/", verifyToken, isHost, upload.array("photos", 5), createListing);
  *       403: { description: Forbidden }
  *       404: { description: Listing not found }
  */
-router.put("/:id", verifyToken, isHost, updateListing);
+router.put(
+  "/:id",
+  verifyToken,
+  isHost,
+  upload.array("photos", 10),
+  updateListing,
+);
 
 /**
  * @swagger

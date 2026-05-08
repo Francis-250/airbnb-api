@@ -18,9 +18,10 @@ model User {
   password         String
   resetToken       String?
   resetTokenExpiry DateTime?
-  listings         Listing[]
+  favoriteListings Listing[] @relation("FavoriteListings")
+  listings         Listing[] @relation("UserListings")
   bookings         Booking[]
-   reviews  Review[]
+  reviews          Review[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }
@@ -37,9 +38,10 @@ model Listing {
   photos        String[]
   rating        Float?
   hostId        String
-  host          User        @relation(fields: [hostId], references: [id])
+  host          User        @relation("UserListings", fields: [hostId], references: [id])
   bookings      Booking[]
-   reviews  Review[]
+  reviews       Review[]
+  favoriteBy    User[]      @relation("FavoriteListings")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }

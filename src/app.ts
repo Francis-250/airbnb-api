@@ -9,20 +9,35 @@ import authRoutes from "./routes/auth.routes";
 import bookingRoutes from "./routes/booking.routes";
 import statsRoutes from "./routes/stats.routes";
 import aiRoute from "./routes/ai.routes";
+import reviewsRoutes from "./routes/reviews.routes";
 import { setupSwagger } from "./lib/swagger";
 import { generalLimiter } from "./middleware/ratelimiter";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
 const allowedOrigins = [
   "http://localhost:4000",
   "https://airbnb-api-oi1o.onrender.com",
+  "http://localhost:5173",
 ];
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log(`Blocked origin: ${origin}`);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+    exposedHeaders: ["Set-Cookie"],
   }),
 );
 app.use(compression());
@@ -39,6 +54,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/ai", aiRoute);
+app.use("/api/reviews", reviewsRoutes);
 
 app.get("/", (req: Request, res: Response) => {
   res.status(200).json({ message: "Welcome to the Airbnb API" });
