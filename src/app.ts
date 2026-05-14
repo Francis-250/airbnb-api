@@ -83,6 +83,6 @@ app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ message: "Api is running" });
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
