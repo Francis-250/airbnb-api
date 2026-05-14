@@ -8,14 +8,19 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const helpers_1 = require("../lib/helpers");
 const crypto_1 = __importDefault(require("crypto"));
-const mailer_1 = require("../middleware/mailer");
+const resend_1 = require("../middleware/resend");
 const mail_temp_1 = require("../templates/mail.temp");
+const isProduction = process.env.NODE_ENV === "production";
 const register = async (req, res) => {
     const { name, email, username, phone, role, bio, password } = req.body;
+    const requestedRole = role === "host" ? "host" : "guest";
     if (!name || !email || !username || !password) {
         return res
             .status(400)
             .json({ message: "Name, email, username and password are required" });
+    }
+    if (role && !["guest", "host"].includes(role)) {
+        return res.status(400).json({ message: "Invalid account role" });
     }
     try {
         const existingUser = await prisma_1.default.user.findFirst({
@@ -34,22 +39,24 @@ const register = async (req, res) => {
                 email,
                 username,
                 phone,
-                role,
+                role: requestedRole,
+                hostStatus: requestedRole === "host" ? "pending" : "approved",
                 avatar,
                 bio,
                 password: hashedpassword,
             },
         });
-        const isHost = role === "host";
+        const isHost = requestedRole === "host";
         const message = isHost
-            ? "Registration successful! Your host account has been created."
+            ? "Registration successful! Your host account is pending admin approval."
             : "Registration successful! You can now log in.";
-        await (0, mailer_1.sendEmail)({
+        await (0, resend_1.sendEmail)({
             to: email,
             subject: "Welcome to Airbnb!",
             html: (0, mail_temp_1.welcomeEmail)(user.name),
         });
-        res.status(201).json(user);
+        const { password: _, ...userWithoutPassword } = user;
+        res.status(201).json({ message, user: userWithoutPassword });
     }
     catch (error) {
         res.status(500).json({ message: "Internal server error" });
@@ -66,7 +73,7 @@ const login = async (req, res) => {
             where: { email },
         });
         if (!user) {
-            return res.status(404).json({ message: "Invalid credentials" });
+            return res.status(401).json({ message: "Invalid credentials" });
         }
         const isMatch = await (0, helpers_1.comparePassword)(password, user.password);
         if (!isMatch) {
@@ -75,11 +82,21 @@ const login = async (req, res) => {
         const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
         res.cookie("token", token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
             maxAge: 3600000,
         });
-        return res.status(200).json({ message: "Login successful" });
+        return res.status(200).json({
+            message: "Login successful",
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                hostStatus: user.hostStatus,
+                avatar: user.avatar,
+            },
+        });
     }
     catch (error) {
         console.log(error);
@@ -96,11 +113,13 @@ const getCurrentUser = async (req, res) => {
         const currentUser = await prisma_1.default.user.findUnique({
             where: { id: user },
             select: {
+                id: true,
                 name: true,
                 email: true,
                 username: true,
                 phone: true,
                 role: true,
+                hostStatus: true,
                 avatar: true,
                 bio: true,
             },
@@ -108,7 +127,7 @@ const getCurrentUser = async (req, res) => {
         if (!currentUser) {
             return res.status(404).json({ message: "User not found" });
         }
-        res.status(200).json(currentUser);
+        res.status(200).json({ user: currentUser });
     }
     catch (error) {
         console.log(error);
@@ -119,8 +138,8 @@ exports.getCurrentUser = getCurrentUser;
 const logout = async (req, res) => {
     res.clearCookie("token", {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
     });
     res.status(200).json({ message: "Logout successful" });
 };
@@ -160,7 +179,7 @@ const forgotPassword = async (req, res) => {
                 where: { email },
                 data: { resetToken: otp, resetTokenExpiry },
             });
-            await (0, mailer_1.sendEmail)({
+            await (0, resend_1.sendEmail)({
                 to: email,
                 subject: "Your Password Reset OTP",
                 html: (0, mail_temp_1.passwordResetEmail)(otp),
@@ -246,6 +265,11 @@ const updateAvatar = async (req, res) => {
             where: { id: req.user },
             data: { avatar },
         });
+        const { password: _, ...userWithoutPassword } = updated;
+        res.status(201).json({
+            message: "Avatar updated successfully",
+            updated: userWithoutPassword,
+        });
         res.json(updated);
     }
     catch (error) {
@@ -264,6 +288,11 @@ const deleteUserAvatar = async (req, res) => {
         const updated = await prisma_1.default.user.update({
             where: { id: req.user },
             data: { avatar: null },
+        });
+        const { password: _, ...userWithoutPassword } = updated;
+        res.status(201).json({
+            message: "Avatar updated successfully",
+            updated: userWithoutPassword,
         });
         res.json(updated);
     }

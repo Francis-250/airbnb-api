@@ -13,6 +13,7 @@ model User {
   username         String    @unique
   phone            String?   @unique
   role             Role
+  hostStatus       HostStatus @default(approved)
   avatar           String?
   bio              String?
   password         String
@@ -22,6 +23,10 @@ model User {
   listings         Listing[] @relation("UserListings")
   bookings         Booking[]
   reviews          Review[]
+  comments         Comment[]
+  guestConversations Conversation[] @relation("GuestConversations")
+  hostConversations  Conversation[] @relation("HostConversations")
+  messages           Message[]      @relation("MessageSender")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }
@@ -33,6 +38,7 @@ model Listing {
   location      String
   pricePerNight Float
   guests        Int
+  status        ListingStatus @default(available)
   type          ListingType
   amenities     String[]
   photos        String[]
@@ -41,22 +47,58 @@ model Listing {
   host          User        @relation("UserListings", fields: [hostId], references: [id])
   bookings      Booking[]
   reviews       Review[]
+  comments      Comment[]
   favoriteBy    User[]      @relation("FavoriteListings")
+  conversations Conversation[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }
 
+model Conversation {
+  id        String    @id @default(cuid())
+  guestId   String
+  hostId    String
+  listingId String
+  guest     User      @relation("GuestConversations", fields: [guestId], references: [id])
+  host      User      @relation("HostConversations", fields: [hostId], references: [id])
+  listing   Listing   @relation(fields: [listingId], references: [id])
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([guestId, hostId, listingId])
+  @@index([guestId])
+  @@index([hostId])
+  @@index([listingId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String
+  readAt         DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+  @@index([senderId])
+}
+
 model Booking {
-  id         String        @id @default(cuid())
-  checkIn    DateTime
-  checkOut   DateTime
-  totalPrice Float
-  status     BookingStatus @default(pending)
-  createdAt  DateTime      @default(now())
-  guest      User          @relation(fields: [guestId], references: [id])
-  guestId    String
-  listing    Listing       @relation(fields: [listingId], references: [id])
-  listingId  String
+  id                 String        @id @default(cuid())
+  checkIn            DateTime
+  checkOut           DateTime
+  totalPrice         Float
+  status             BookingStatus @default(pending)
+  cancellationReason String?
+  cancelledAt        DateTime?
+  createdAt          DateTime      @default(now())
+  guest              User          @relation(fields: [guestId], references: [id])
+  guestId            String
+  listing            Listing       @relation(fields: [listingId], references: [id])
+  listingId          String
 }
 
 model Review {
@@ -70,9 +112,30 @@ model Review {
   listingId String
 }
 
+model Comment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guest     User     @relation(fields: [guestId], references: [id])
+  guestId   String
+  listing   Listing  @relation(fields: [listingId], references: [id])
+  listingId String
+
+  @@index([guestId])
+  @@index([listingId])
+}
+
 enum Role {
+  admin
   host
   guest
+}
+
+enum HostStatus {
+  pending
+  approved
+  restricted
 }
 
 enum ListingType {
@@ -80,6 +143,12 @@ enum ListingType {
   house
   villa
   cabin
+}
+
+enum ListingStatus {
+  available
+  booked
+  unavailable
 }
 
 enum BookingStatus {

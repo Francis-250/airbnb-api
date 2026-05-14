@@ -29,7 +29,12 @@ const router = (0, express_1.Router)();
  *             example:
  *               error: "Unauthorized: No token provided"
  */
-router.get("/", auth_middleware_1.verifyToken, users_controller_1.getAllUsers);
+router.get("/", auth_middleware_1.verifyToken, auth_middleware_1.isAdmin, users_controller_1.getAllUsers);
+router.get("/hosts", auth_middleware_1.verifyToken, auth_middleware_1.isAdmin, users_controller_1.getHostAccounts);
+router.patch("/hosts/:id/status", auth_middleware_1.verifyToken, auth_middleware_1.isAdmin, users_controller_1.updateHostStatus);
+router.get("/favorites", auth_middleware_1.verifyToken, users_controller_1.getFavorites);
+router.post("/favorites/:listingId", auth_middleware_1.verifyToken, users_controller_1.addFavorite);
+router.delete("/favorites/:listingId", auth_middleware_1.verifyToken, users_controller_1.removeFavorite);
 /**
  * @swagger
  * /api/users/{id}:

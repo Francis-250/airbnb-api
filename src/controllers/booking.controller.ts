@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { BookingStatus, Prisma } from "@prisma/client";
 import prisma from "../lib/prisma";
 import { sendEmail } from "../middleware/resend";
 import {
@@ -12,18 +13,45 @@ export const getAllBookings = async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
   const skip = (page - 1) * limit;
+  const status = req.query.status as string | undefined;
+  const now = new Date();
 
   try {
-    const where =
+    const baseWhere: Prisma.BookingWhereInput =
       role === "guest" ? { guestId: user } : { listing: { hostId: user } };
+    const where: Prisma.BookingWhereInput =
+      status === "upcoming"
+        ? {
+            ...baseWhere,
+            status: { in: [BookingStatus.pending, BookingStatus.confirmed] },
+            checkOut: { gte: now },
+          }
+        : status === "past"
+          ? {
+              ...baseWhere,
+              status: { not: BookingStatus.cancelled },
+              checkOut: { lt: now },
+            }
+          : status === "cancelled"
+            ? { ...baseWhere, status: BookingStatus.cancelled }
+            : baseWhere;
     const [bookings, total] = await Promise.all([
       prisma.booking.findMany({
         where,
         skip,
         take: limit,
+        orderBy: { createdAt: "desc" },
         include: {
-          guest: { select: { name: true, avatar: true } },
-          listing: { select: { title: true, location: true } },
+          guest: { select: { name: true, email: true, avatar: true } },
+          listing: {
+            select: {
+              id: true,
+              title: true,
+              location: true,
+              photos: true,
+              pricePerNight: true,
+            },
+          },
         },
       }),
       prisma.booking.count({ where }),
@@ -78,11 +106,43 @@ export const createBooking = async (req: Request, res: Response) => {
   const checkInDate = new Date(checkIn);
   const checkOutDate = new Date(checkOut);
 
+  if (
+    Number.isNaN(checkInDate.getTime()) ||
+    Number.isNaN(checkOutDate.getTime())
+  ) {
+    return res
+      .status(400)
+      .json({ message: "Valid check-in and check-out dates are required" });
+  }
+
+  if (checkOutDate <= checkInDate) {
+    return res
+      .status(400)
+      .json({ message: "Check-out must be after check-in" });
+  }
+
   try {
-    const listing = await prisma.listing.findUnique({
-      where: { id: listingId },
+    const listing = await prisma.listing.findFirst({
+      where: { id: listingId, host: { hostStatus: "approved" } },
     });
     if (!listing) return res.status(404).json({ message: "Listing not found" });
+
+    const overlappingBooking = await prisma.booking.findFirst({
+      where: {
+        listingId,
+        status: { not: BookingStatus.cancelled },
+        checkIn: { lt: checkOutDate },
+        checkOut: { gt: checkInDate },
+      },
+      select: { id: true },
+    });
+
+    if (overlappingBooking) {
+      return res.status(409).json({
+        message:
+          "These dates are unavailable because the listing is already booked",
+      });
+    }
 
     const nights = Math.ceil(
       (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24),
@@ -101,7 +161,7 @@ export const createBooking = async (req: Request, res: Response) => {
     const guest = await prisma.user.findUnique({ where: { id: user } });
     await sendEmail({
       to: guest?.email as string,
-      subject: "Welcome to Airbnb!",
+      subject: `Booking Confirmation - ${listing.title}`,
       html: bookingConfirmationEmail(listing.title, checkIn, checkOut),
     });
     res.status(201).json(booking);
@@ -115,6 +175,10 @@ export const updateBooking = async (req: Request, res: Response) => {
   const user = req.user;
   const role = req.role;
   const { status } = req.body;
+  const cancellationReason =
+    typeof req.body.cancellationReason === "string"
+      ? req.body.cancellationReason.trim()
+      : "";
 
   try {
     const booking = await prisma.booking.findUnique({
@@ -124,30 +188,47 @@ export const updateBooking = async (req: Request, res: Response) => {
 
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
+    if (role === "host") {
+      const host = await prisma.user.findUnique({
+        where: { id: user },
+        select: { hostStatus: true },
+      });
+
+      if (!host || host.hostStatus !== "approved") {
+        return res.status(403).json({
+          message:
+            "Your host account must be approved before performing this action",
+        });
+      }
+    }
+
     if (role === "host" && booking.listing.hostId !== user) {
       return res
         .status(403)
         .json({ message: "Only the host can update booking status" });
     }
 
-    if (role === "guest") {
+    if (role !== "host") {
       return res
         .status(403)
-        .json({ message: "Guests are not allowed to update booking status" });
+        .json({ message: "Only hosts can update booking status" });
+    }
+
+    if (status === BookingStatus.cancelled && !cancellationReason) {
+      return res
+        .status(400)
+        .json({ message: "Cancellation reason is required" });
     }
 
     const updated = await prisma.booking.update({
       where: { id: id as string },
-      data: { status },
+      data: {
+        status,
+        cancellationReason:
+          status === BookingStatus.cancelled ? cancellationReason : null,
+        cancelledAt: status === BookingStatus.cancelled ? new Date() : null,
+      },
     });
-
-    // Send email notification to guest
-    const statusMessage =
-      status === "confirmed"
-        ? "Your booking has been confirmed!"
-        : status === "cancelled"
-          ? "Your booking has been cancelled."
-          : "Your booking status has been updated.";
 
     await sendEmail({
       to: booking.guest?.email as string,
@@ -164,6 +245,14 @@ export const updateBooking = async (req: Request, res: Response) => {
 export const deleteBooking = async (req: Request, res: Response) => {
   const { id } = req.params;
   const user = req.user;
+  const cancellationReason =
+    typeof req.body.cancellationReason === "string"
+      ? req.body.cancellationReason.trim()
+      : "";
+
+  if (!cancellationReason) {
+    return res.status(400).json({ message: "Cancellation reason is required" });
+  }
 
   try {
     const booking = await prisma.booking.findUnique({
@@ -177,7 +266,18 @@ export const deleteBooking = async (req: Request, res: Response) => {
         .json({ message: "You can only cancel your own bookings" });
     }
 
-    await prisma.booking.delete({ where: { id: id as string } });
+    if (booking.status === BookingStatus.cancelled) {
+      return res.status(400).json({ message: "Booking is already cancelled" });
+    }
+
+    await prisma.booking.update({
+      where: { id: id as string },
+      data: {
+        status: BookingStatus.cancelled,
+        cancellationReason,
+        cancelledAt: new Date(),
+      },
+    });
     res.status(200).json({ message: "Booking cancelled successfully" });
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });

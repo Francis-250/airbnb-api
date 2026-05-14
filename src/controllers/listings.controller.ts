@@ -3,9 +3,27 @@ import prisma from "../lib/prisma";
 import { uploadListingPhotos as uploadListingPhotosHelper } from "../lib/helpers";
 import { deleteCacheByPrefix, getCache, setCache } from "../lib/cache";
 
+const parseStringArray = (value: unknown) => {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  if (typeof value !== "string" || !value.trim()) return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+  } catch {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
 export const getAllListings = async (req: Request, res: Response) => {
   try {
     const listings = await prisma.listing.findMany({
+      where: { host: { hostStatus: "approved" } },
       include: { host: { select: { name: true, email: true } } },
     });
     res.status(200).json(listings);
@@ -52,8 +70,8 @@ export const getMyListings = async (req: Request, res: Response) => {
 export const getListingById = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    const listing = await prisma.listing.findUnique({
-      where: { id: id as string },
+    const listing = await prisma.listing.findFirst({
+      where: { id: id as string, host: { hostStatus: "approved" } },
       include: { host: { select: { name: true, email: true, avatar: true } } },
     });
     if (listing) {
@@ -80,6 +98,7 @@ export const createListing = async (req: Request, res: Response) => {
       location,
       pricePerNight,
       guests,
+      status,
       type,
       amenities,
       rating,
@@ -88,10 +107,8 @@ export const createListing = async (req: Request, res: Response) => {
     const parsedPrice = parseFloat(pricePerNight);
     const parsedGuests = parseInt(guests);
     const parsedRating = parseFloat(rating);
-    const parsedAmenities =
-      typeof amenities === "string"
-        ? amenities.split(",").map((a: string) => a.trim())
-        : amenities;
+    const parsedAmenities = parseStringArray(amenities);
+    const listingStatus = status || "available";
 
     if (parsedGuests <= 0)
       return res.status(400).json({ message: "Guests must be greater than 0" });
@@ -113,9 +130,10 @@ export const createListing = async (req: Request, res: Response) => {
         location,
         pricePerNight: parsedPrice,
         guests: parsedGuests,
+        status: listingStatus,
         type,
         amenities: parsedAmenities,
-        rating: parsedRating,
+        rating: Number.isFinite(parsedRating) ? parsedRating : 0,
         photos: photoUrls,
         hostId: user,
       },
@@ -138,6 +156,7 @@ export const updateListing = async (req: Request, res: Response) => {
     location,
     pricePerNight,
     guests,
+    status,
     type,
     amenities,
     existingPhotos,
@@ -146,17 +165,13 @@ export const updateListing = async (req: Request, res: Response) => {
   try {
     const parsedPrice = parseFloat(pricePerNight);
     const parsedGuests = parseInt(guests);
-    const parsedAmenities = Array.isArray(amenities)
-      ? amenities
-      : JSON.parse(amenities || "[]");
-    const parsedExistingPhotos = Array.isArray(existingPhotos)
-      ? existingPhotos
-      : JSON.parse(existingPhotos || "[]");
+    const parsedAmenities = parseStringArray(amenities);
+    const parsedExistingPhotos = parseStringArray(existingPhotos);
 
-    if (parsedGuests <= 0) {
+    if (!Number.isFinite(parsedGuests) || parsedGuests <= 0) {
       return res.status(400).json({ message: "Guests must be greater than 0" });
     }
-    if (parsedPrice <= 0) {
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
       return res
         .status(400)
         .json({ message: "Price per night must be greater than 0" });
@@ -173,10 +188,18 @@ export const updateListing = async (req: Request, res: Response) => {
 
     let newPhotoUrls: string[] = [];
     if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-      const results = await uploadListingPhotosHelper(
-        req.files as Express.Multer.File[],
-      );
-      newPhotoUrls = results.map((result: any) => result.secure_url);
+      try {
+        const results = await uploadListingPhotosHelper(
+          req.files as Express.Multer.File[],
+        );
+        newPhotoUrls = results.map((result: any) => result.secure_url);
+      } catch (error) {
+        console.log("Listing photo upload failed:", error);
+        return res.status(502).json({
+          message:
+            "Could not upload listing photos. Please check Cloudinary/network configuration and try again.",
+        });
+      }
     }
 
     const allPhotos = [...parsedExistingPhotos, ...newPhotoUrls];
@@ -189,6 +212,7 @@ export const updateListing = async (req: Request, res: Response) => {
         location,
         pricePerNight: parsedPrice,
         guests: parsedGuests,
+        status,
         type,
         amenities: parsedAmenities,
         photos: allPhotos,
@@ -232,10 +256,23 @@ export const searchListings = async (req: Request, res: Response) => {
   const limit = parseInt(req.query.limit as string) || 10;
   const skip = (page - 1) * limit;
 
-  const where: any = {};
+  const where: any = { host: { hostStatus: "approved" } };
   if (location)
     where.location = { contains: location as string, mode: "insensitive" };
-  if (type) where.type = type as string;
+  if (type) {
+    const types = Array.isArray(type)
+      ? type.flatMap((item) => String(item).split(","))
+      : String(type).split(",");
+    const normalizedTypes = types
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (normalizedTypes.length === 1) {
+      where.type = normalizedTypes[0];
+    } else if (normalizedTypes.length > 1) {
+      where.type = { in: normalizedTypes };
+    }
+  }
   if (minPrice || maxPrice) {
     where.pricePerNight = {};
     if (minPrice) where.pricePerNight.gte = parseFloat(minPrice as string);
@@ -271,13 +308,21 @@ export const getListingStats = async (req: Request, res: Response) => {
   try {
     const [totalListings, priceAggregate, byLocation, byType] =
       await Promise.all([
-        prisma.listing.count(),
-        prisma.listing.aggregate({ _avg: { pricePerNight: true } }),
+        prisma.listing.count({ where: { host: { hostStatus: "approved" } } }),
+        prisma.listing.aggregate({
+          where: { host: { hostStatus: "approved" } },
+          _avg: { pricePerNight: true },
+        }),
         prisma.listing.groupBy({
+          where: { host: { hostStatus: "approved" } },
           by: ["location"],
           _count: { location: true },
         }),
-        prisma.listing.groupBy({ by: ["type"], _count: { type: true } }),
+        prisma.listing.groupBy({
+          where: { host: { hostStatus: "approved" } },
+          by: ["type"],
+          _count: { type: true },
+        }),
       ]);
 
     const response = {
